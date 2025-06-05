@@ -163,6 +163,12 @@ export default function VideoProcessor({
       setDuration(videoDuration)
       setIsVideoLoading(false)
       console.log(`Video loaded successfully. Duration: ${videoDuration} seconds`)
+      
+      // Auto-start extraction after a short delay
+      setTimeout(() => {
+        console.log('Auto-starting extraction...')
+        extractProducts()
+      }, 1000)
     }
   }
 
@@ -259,24 +265,30 @@ export default function VideoProcessor({
             </div>
           </div>
 
-          {/* Extract Button */}
-          <button
-            onClick={extractProducts}
-            disabled={isExtracting || !duration || isVideoLoading}
-            className="w-full py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
+          {/* Auto-extraction status */}
+          <div className="w-full py-3 bg-gray-100 text-gray-700 rounded-lg flex items-center justify-center gap-2">
             {isExtracting ? (
               <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Extracting Screenshots... {Math.round(extractionProgress)}%
+                <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                Auto-Extracting Screenshots... {Math.round(extractionProgress)}%
+              </>
+            ) : isVideoLoading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin"></div>
+                Loading video... Extraction will start automatically
+              </>
+            ) : duration > 0 ? (
+              <>
+                <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+                Starting auto-extraction...
               </>
             ) : (
               <>
                 <Download size={20} />
-                Extract Products (Every 5 seconds)
+                Waiting for video to load...
               </>
             )}
-          </button>
+          </div>
 
           {/* Progress Bar */}
           {isExtracting && (
