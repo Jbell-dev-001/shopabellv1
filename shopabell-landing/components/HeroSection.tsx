@@ -39,12 +39,15 @@ export default function HeroSection() {
               Start Selling Free
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
-            <div className="flex gap-3">
-              <a href="/demo" className="px-6 py-4 bg-white text-gray-800 font-semibold rounded-full text-base border-2 border-gray-200 hover:border-purple-600 hover:text-purple-600 transition-all duration-300 inline-block">
+            <div className="flex flex-wrap gap-3 justify-center">
+              <a href="/demo" className="px-4 py-3 bg-white text-gray-800 font-semibold rounded-full text-sm border-2 border-gray-200 hover:border-purple-600 hover:text-purple-600 transition-all duration-300 inline-block">
                 Try WhatsApp Demo
               </a>
-              <a href="/store-generator" className="px-6 py-4 bg-white text-gray-800 font-semibold rounded-full text-base border-2 border-gray-200 hover:border-purple-600 hover:text-purple-600 transition-all duration-300 inline-block">
-                See Store Generator
+              <a href="/store-generator" className="px-4 py-3 bg-white text-gray-800 font-semibold rounded-full text-sm border-2 border-gray-200 hover:border-purple-600 hover:text-purple-600 transition-all duration-300 inline-block">
+                Store Generator
+              </a>
+              <a href="/livestream-converter" className="px-4 py-3 bg-white text-gray-800 font-semibold rounded-full text-sm border-2 border-gray-200 hover:border-purple-600 hover:text-purple-600 transition-all duration-300 inline-block">
+                Livestream Converter
               </a>
             </div>
           </motion.div>
