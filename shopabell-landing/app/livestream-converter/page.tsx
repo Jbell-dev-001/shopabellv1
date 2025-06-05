@@ -347,7 +347,7 @@ export default function LivestreamConverterPage() {
 
               {/* Debug state display */}
               <div className="mb-4 p-2 bg-gray-100 rounded text-xs font-mono">
-                DEBUG: isLoadingUrl = {String(isLoadingUrl)} | urlError = "{urlError}" | facebookUrl = "{facebookUrl}"
+                DEBUG: isLoadingUrl = {String(isLoadingUrl)} | urlError = &quot;{urlError}&quot; | facebookUrl = &quot;{facebookUrl}&quot;
               </div>
 
               {uploadMethod === 'file' ? (
