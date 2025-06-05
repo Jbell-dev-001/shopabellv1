@@ -15,6 +15,8 @@ interface Product {
   image: string
   description: string
   inStock: boolean
+  timestamp?: number
+  uploadedAt?: string
 }
 
 interface StoreData {
@@ -234,11 +236,11 @@ export default function StorefrontPage() {
         </div>
 
         {/* Livestream Products Notice */}
-        {storeData.products.some((p: any) => p.uploadedAt) && (
+        {storeData.products.some((p: Product) => p.uploadedAt) && (
           <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
             <h3 className="font-semibold text-green-900 mb-2">🔴 Live from Livestream!</h3>
             <p className="text-green-700 text-sm">
-              {storeData.products.filter((p: any) => p.uploadedAt).length} products just added from our live video stream
+              {storeData.products.filter((p: Product) => p.uploadedAt).length} products just added from our live video stream
             </p>
           </div>
         )}
