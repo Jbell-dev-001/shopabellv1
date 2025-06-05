@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { ArrowLeft, Upload, Play, RotateCcw, Download, Edit3 } from 'lucide-react'
 import VideoProcessor from '@/components/livestream/VideoProcessor'
 import ProductEditor from '@/components/livestream/ProductEditor'
-import CatalogPreview from '@/components/livestream/CatalogPreview'
 
 interface ExtractedProduct {
   id: string
@@ -24,7 +23,9 @@ export default function LivestreamConverterPage() {
   const [videoUrl, setVideoUrl] = useState<string>('')
   const [extractedProducts, setExtractedProducts] = useState<ExtractedProduct[]>([])
   const [selectedProduct, setSelectedProduct] = useState<ExtractedProduct | null>(null)
-  const [currentStep, setCurrentStep] = useState<'upload' | 'extract' | 'edit' | 'catalog'>('upload')
+  const [currentStep, setCurrentStep] = useState<'upload' | 'extract' | 'edit' | 'uploaded'>('upload')
+  const [isLivestream, setIsLivestream] = useState(false)
+  const [uploadedProducts, setUploadedProducts] = useState<ExtractedProduct[]>([])
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -41,18 +42,32 @@ export default function LivestreamConverterPage() {
     setCurrentStep('edit')
   }
 
-  const handleProductUpdate = (updatedProduct: ExtractedProduct) => {
+  const handleProductUpdate = async (updatedProduct: ExtractedProduct) => {
+    // Update the product in the list
     setExtractedProducts(prev => 
       prev.map(p => p.id === updatedProduct.id ? updatedProduct : p)
     )
     setSelectedProduct(null)
+
+    // Auto-upload after editing with delay for livestreams
+    const uploadDelay = isLivestream ? 120000 : 0 // 2 minutes for livestream, immediate for recorded
+    
+    setTimeout(async () => {
+      await uploadSingleProduct(updatedProduct)
+      setUploadedProducts(prev => [...prev, updatedProduct])
+    }, uploadDelay)
   }
 
-  const handleUploadToCatalog = async () => {
-    // Simulate uploading to storefront
-    setCurrentStep('catalog')
-    // In production, this would upload to the actual storefront API
-    console.log('Uploading products to catalog:', extractedProducts)
+  const uploadSingleProduct = async (product: ExtractedProduct) => {
+    // Simulate API call to upload single product
+    console.log('Uploading product to storefront:', product)
+    
+    // In production, this would be an actual API call
+    return new Promise(resolve => setTimeout(resolve, 500))
+  }
+
+  const showUploadedSummary = () => {
+    setCurrentStep('uploaded')
   }
 
   const resetProcess = () => {
@@ -60,6 +75,8 @@ export default function LivestreamConverterPage() {
     setVideoUrl('')
     setExtractedProducts([])
     setSelectedProduct(null)
+    setUploadedProducts([])
+    setIsLivestream(false)
     setCurrentStep('upload')
     if (videoUrl) {
       URL.revokeObjectURL(videoUrl)
@@ -104,14 +121,14 @@ export default function LivestreamConverterPage() {
             {[
               { step: 'upload', label: 'Upload Video', icon: Upload },
               { step: 'extract', label: 'Extract Products', icon: Play },
-              { step: 'edit', label: 'Edit & Enhance', icon: Edit3 },
-              { step: 'catalog', label: 'Upload to Catalog', icon: Download }
+              { step: 'edit', label: 'Edit & Auto-Upload', icon: Edit3 },
+              { step: 'uploaded', label: 'Live on Store', icon: Download }
             ].map(({ step, label, icon: Icon }, index) => (
               <div key={step} className="flex items-center">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                   currentStep === step 
                     ? 'bg-purple-600 text-white' 
-                    : extractedProducts.length > 0 && index < ['upload', 'extract', 'edit', 'catalog'].indexOf(currentStep)
+                    : extractedProducts.length > 0 && index < ['upload', 'extract', 'edit', 'uploaded'].indexOf(currentStep)
                     ? 'bg-green-600 text-white'
                     : 'bg-gray-200 text-gray-600'
                 }`}>
@@ -156,14 +173,35 @@ export default function LivestreamConverterPage() {
                 </div>
               </label>
 
-              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                <h3 className="font-semibold text-blue-900 mb-2">How it works:</h3>
-                <ul className="text-sm text-blue-700 space-y-1 text-left">
-                  <li>• Screenshots taken every 5 seconds automatically</li>
-                  <li>• Client-side processing - your video never leaves your device</li>
-                  <li>• Crop and enhance images before cataloging</li>
-                  <li>• Add product details and upload to storefront</li>
-                </ul>
+              <div className="grid md:grid-cols-2 gap-4 mt-6">
+                <div className="p-4 bg-blue-50 rounded-lg">
+                  <h3 className="font-semibold text-blue-900 mb-2">📹 Recorded Video</h3>
+                  <ul className="text-sm text-blue-700 space-y-1">
+                    <li>• Instant upload after editing</li>
+                    <li>• No delay - products go live immediately</li>
+                  </ul>
+                </div>
+                <div className="p-4 bg-red-50 rounded-lg">
+                  <h3 className="font-semibold text-red-900 mb-2">🔴 Live Stream</h3>
+                  <ul className="text-sm text-red-700 space-y-1">
+                    <li>• 2-minute upload delay</li>
+                    <li>• Edit details after upload</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isLivestream}
+                    onChange={(e) => setIsLivestream(e.target.checked)}
+                    className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    This is a live stream recording (2-minute upload delay)
+                  </span>
+                </label>
               </div>
             </div>
           </div>
@@ -222,14 +260,25 @@ export default function LivestreamConverterPage() {
                   ))}
                 </div>
 
-                <button
-                  onClick={handleUploadToCatalog}
-                  disabled={extractedProducts.filter(p => p.isProcessed).length === 0}
-                  className="w-full py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  <Download size={20} />
-                  Upload {extractedProducts.filter(p => p.isProcessed).length} Products to Catalog
-                </button>
+                <div className="space-y-4">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h3 className="font-semibold text-green-900 mb-2">✅ Auto-Upload Active</h3>
+                    <p className="text-sm text-green-700">
+                      Products automatically upload {isLivestream ? 'after 2-minute delay' : 'immediately'} when you finish editing them.
+                      {uploadedProducts.length > 0 && ` ${uploadedProducts.length} products already uploaded.`}
+                    </p>
+                  </div>
+                  
+                  {uploadedProducts.length > 0 && (
+                    <button
+                      onClick={showUploadedSummary}
+                      className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Download size={20} />
+                      View {uploadedProducts.length} Uploaded Products
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -263,11 +312,47 @@ export default function LivestreamConverterPage() {
           </div>
         )}
 
-        {currentStep === 'catalog' && (
-          <CatalogPreview
-            products={extractedProducts.filter(p => p.isProcessed)}
-            onReset={resetProcess}
-          />
+        {currentStep === 'uploaded' && (
+          <div className="bg-white rounded-xl p-8 shadow-lg text-center">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Download className="w-12 h-12 text-green-600" />
+            </div>
+            
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              Products Uploaded Successfully! 🎉
+            </h2>
+            
+            <p className="text-gray-600 mb-6">
+              {uploadedProducts.length} products are now live on your storefront. 
+              Customers can browse and purchase them immediately.
+            </p>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <h3 className="font-semibold text-blue-900 mb-2">📝 Edit Products Anytime</h3>
+              <p className="text-sm text-blue-700">
+                Visit your storefront dashboard to update prices, descriptions, quantities, 
+                and other product details after upload.
+              </p>
+            </div>
+
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => window.open('/store/trendy-fashion-x5k9j', '_blank')}
+                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+              >
+                <Download size={20} />
+                View Live Products
+              </button>
+              
+              <button
+                onClick={resetProcess}
+                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
+              >
+                <RotateCcw size={20} />
+                Process Another Video
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -306,8 +306,15 @@ export default function ProductEditor({ product, onUpdate, onClose }: ProductEdi
           className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
         >
           <Save size={20} />
-          Save Product
+          Save & Auto-Upload
         </button>
+        
+        <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <p className="text-sm text-yellow-800">
+            <strong>Note:</strong> Product will auto-upload to storefront after saving. 
+            You can edit details later from your dashboard.
+          </p>
+        </div>
       </div>
 
       {/* Hidden Canvas for Cropping */}
