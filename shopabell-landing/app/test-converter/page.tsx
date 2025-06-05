@@ -189,7 +189,7 @@ export default function TestConverterPage() {
           </div>
           
           <div className="mt-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <h3 className="font-semibold text-yellow-900 mb-2">Common Issues & Solutions:</h3>
+            <h3 className="font-semibold text-yellow-900 mb-2">Common Issues & Solutions</h3>
             <ul className="text-sm text-yellow-800 space-y-1">
               <li>• <strong>Video won&apos;t load:</strong> Check file format (MP4, WebM, MOV supported)</li>
               <li>• <strong>Facebook URL fails:</strong> Use any facebook.com video URL for demo</li>
