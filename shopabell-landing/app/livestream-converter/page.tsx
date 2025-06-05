@@ -28,6 +28,9 @@ export default function LivestreamConverterPage() {
   const [uploadedProducts, setUploadedProducts] = useState<ExtractedProduct[]>([])
   const [processingProgress, setProcessingProgress] = useState(0)
   const [urlError, setUrlError] = useState<string>('')
+  const [isLoadingUrl, setIsLoadingUrl] = useState(false)
+  const [currentProcessingStep, setCurrentProcessingStep] = useState<string>('')
+  const [uploadingCount, setUploadingCount] = useState(0)
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -54,14 +57,17 @@ export default function LivestreamConverterPage() {
 
   const handleUrlSubmit = async () => {
     setUrlError('')
+    setIsLoadingUrl(true)
     
     if (!facebookUrl.trim()) {
       setUrlError('Please enter a Facebook video URL')
+      setIsLoadingUrl(false)
       return
     }
 
     if (!validateVideoUrl(facebookUrl)) {
       setUrlError('Please enter a valid URL')
+      setIsLoadingUrl(false)
       return
     }
 
@@ -72,6 +78,7 @@ export default function LivestreamConverterPage() {
     
     if (!isFacebookUrl) {
       setUrlError('Please enter a Facebook video URL (facebook.com or fb.watch)')
+      setIsLoadingUrl(false)
       return
     }
 
@@ -80,9 +87,11 @@ export default function LivestreamConverterPage() {
       // In production, you'd use Facebook Graph API or a video processing service
       const processedUrl = await processVideoUrl()
       setVideoUrl(processedUrl)
+      setIsLoadingUrl(false)
       setCurrentStep('extract')
     } catch {
       setUrlError('Unable to process this video URL. Please try a different link or upload the video file directly.')
+      setIsLoadingUrl(false)
     }
   }
 
@@ -118,26 +127,34 @@ export default function LivestreamConverterPage() {
       const product = products[i]
       const progress = ((i + 1) / products.length) * 100
       setProcessingProgress(progress)
+      setCurrentProcessingStep(`Processing product ${i + 1} of ${products.length}`)
       
       // Auto-enhance the product
       const enhancedProduct = await autoEnhanceProduct(product)
       processedProducts.push(enhancedProduct)
       
+      // Update the displayed products in real-time
+      setExtractedProducts([...processedProducts])
+      
       // Auto-upload with delay for livestreams
       const uploadDelay = isLivestream ? 120000 : 1000 // 2 minutes for livestream, 1 second for recorded
       
       setTimeout(async () => {
+        setUploadingCount(prev => prev + 1)
+        setCurrentProcessingStep(`Uploading product ${i + 1} to storefront...`)
         await uploadSingleProduct(enhancedProduct)
         setUploadedProducts(prev => [...prev, enhancedProduct])
+        setUploadingCount(prev => prev - 1)
         
         // If this is the last product, show uploaded summary
         if (i === products.length - 1) {
-          setTimeout(() => setCurrentStep('uploaded'), 1000)
+          setTimeout(() => {
+            setCurrentProcessingStep('All products uploaded successfully!')
+            setCurrentStep('uploaded')
+          }, 1000)
         }
       }, uploadDelay)
     }
-    
-    setExtractedProducts(processedProducts)
   }
 
   const autoEnhanceProduct = async (product: ExtractedProduct): Promise<ExtractedProduct> => {
@@ -214,6 +231,9 @@ export default function LivestreamConverterPage() {
     setProcessingProgress(0)
     setUploadMethod('file')
     setUrlError('')
+    setIsLoadingUrl(false)
+    setCurrentProcessingStep('')
+    setUploadingCount(0)
     setCurrentStep('upload')
     if (videoUrl && videoFile) {
       URL.revokeObjectURL(videoUrl)
@@ -354,10 +374,17 @@ export default function LivestreamConverterPage() {
                   
                   <button
                     onClick={handleUrlSubmit}
-                    disabled={!facebookUrl.trim()}
-                    className="w-full py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    disabled={!facebookUrl.trim() || isLoadingUrl}
+                    className="w-full py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    Process Facebook Video
+                    {isLoadingUrl ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Processing Facebook Video...
+                      </>
+                    ) : (
+                      'Process Facebook Video'
+                    )}
                   </button>
                   
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -435,7 +462,7 @@ export default function LivestreamConverterPage() {
             {/* Progress Bar */}
             <div className="mb-8">
               <div className="flex justify-between text-sm text-gray-600 mb-2">
-                <span>Processing products...</span>
+                <span>{currentProcessingStep || 'Processing products...'}</span>
                 <span>{Math.round(processingProgress)}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-3">
@@ -444,6 +471,12 @@ export default function LivestreamConverterPage() {
                   style={{ width: `${processingProgress}%` }}
                 ></div>
               </div>
+              {uploadingCount > 0 && (
+                <div className="mt-3 flex items-center gap-2 text-sm text-orange-600">
+                  <div className="w-4 h-4 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Uploading {uploadingCount} product{uploadingCount > 1 ? 's' : ''} to storefront...</span>
+                </div>
+              )}
             </div>
 
             {/* Processing Steps */}

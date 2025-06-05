@@ -231,7 +231,7 @@ export default function VideoProcessor({
             {isExtracting ? (
               <>
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Extracting... {Math.round(extractionProgress)}%
+                Extracting Screenshots... {Math.round(extractionProgress)}%
               </>
             ) : (
               <>
@@ -245,7 +245,7 @@ export default function VideoProcessor({
           {isExtracting && (
             <div className="mt-4">
               <div className="flex justify-between text-sm text-gray-600 mb-2">
-                <span>Processing frames...</span>
+                <span>Extracting screenshots from video...</span>
                 <span>{Math.round(extractionProgress)}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
@@ -253,6 +253,10 @@ export default function VideoProcessor({
                   className="bg-purple-600 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${extractionProgress}%` }}
                 ></div>
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-xs text-purple-600">
+                <div className="w-3 h-3 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                <span>Taking screenshots every 5 seconds...</span>
               </div>
             </div>
           )}
