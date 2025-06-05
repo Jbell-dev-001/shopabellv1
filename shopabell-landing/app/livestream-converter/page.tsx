@@ -50,21 +50,7 @@ export default function LivestreamConverterPage() {
     }
   }
 
-  const extractVideoId = (url: string): string | null => {
-    // Facebook video URL patterns
-    const patterns = [
-      /facebook\.com\/.*\/videos\/(\d+)/,
-      /facebook\.com\/watch\/\?v=(\d+)/,
-      /fb\.watch\/([a-zA-Z0-9]+)/,
-      /facebook\.com\/[^\/]+\/videos\/[^\/]+\/(\d+)/
-    ]
-    
-    for (const pattern of patterns) {
-      const match = url.match(pattern)
-      if (match) return match[1]
-    }
-    return null
-  }
+  // Removed extractVideoId function as we're simplifying validation for demo
 
   const handleUrlSubmit = async () => {
     setUrlError('')
@@ -79,14 +65,18 @@ export default function LivestreamConverterPage() {
       return
     }
 
-    const videoId = extractVideoId(facebookUrl)
-    if (!videoId) {
-      setUrlError('Please enter a valid Facebook video URL')
+    // Check if it's a Facebook-related URL
+    const isFacebookUrl = facebookUrl.includes('facebook.com') || 
+                         facebookUrl.includes('fb.watch') || 
+                         facebookUrl.includes('m.facebook.com')
+    
+    if (!isFacebookUrl) {
+      setUrlError('Please enter a Facebook video URL (facebook.com or fb.watch)')
       return
     }
 
     try {
-      // For demo purposes, we'll use a placeholder video URL
+      // For demo purposes, we'll process any valid Facebook URL
       // In production, you'd use Facebook Graph API or a video processing service
       const processedUrl = await processVideoUrl()
       setVideoUrl(processedUrl)
@@ -376,8 +366,13 @@ export default function LivestreamConverterPage() {
                       <li>• facebook.com/watch/?v=123456789</li>
                       <li>• facebook.com/username/videos/123456789</li>
                       <li>• fb.watch/abc123</li>
-                      <li>• facebook.com/page/videos/name/123456789</li>
+                      <li>• facebook.com/reel/123456789</li>
+                      <li>• m.facebook.com/watch/?v=123456789</li>
+                      <li>• Any Facebook video or reel URL</li>
                     </ul>
+                    <p className="text-xs text-blue-600 mt-2">
+                      <strong>Demo:</strong> Any valid Facebook URL will work for testing purposes
+                    </p>
                   </div>
                 </div>
               )}
