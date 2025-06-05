@@ -39,9 +39,9 @@ export default function HeroSection() {
               Start Selling Free
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
-            <button className="px-8 py-4 bg-white text-gray-800 font-semibold rounded-full text-lg border-2 border-gray-200 hover:border-purple-600 hover:text-purple-600 transition-all duration-300">
-              Download Brochure
-            </button>
+            <a href="/demo" className="px-8 py-4 bg-white text-gray-800 font-semibold rounded-full text-lg border-2 border-gray-200 hover:border-purple-600 hover:text-purple-600 transition-all duration-300 inline-block">
+              Try WhatsApp Demo
+            </a>
           </motion.div>
           
           <motion.div 
