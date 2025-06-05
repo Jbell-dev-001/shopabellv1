@@ -92,15 +92,36 @@ export default function StorefrontPage() {
     setTimeout(() => {
       // In production, fetch data based on subdomain
       const data = mockStoreData['trendy-fashion-x5k9j']
-      setStoreData(data)
+      
+      // Load products uploaded from livestream converter
+      const livestreamProducts = JSON.parse(localStorage.getItem('livestream-products') || '[]')
+      console.log('Loading livestream products:', livestreamProducts)
+      
+      // Combine mock products with livestream products
+      const combinedProducts = [...data.products, ...livestreamProducts]
+      
+      setStoreData({
+        ...data,
+        products: combinedProducts
+      })
       setLoading(false)
     }, 500)
 
-    // Simulate real-time updates
+    // Check for new livestream products every 5 seconds
     const interval = setInterval(() => {
-      // In production, this would be a WebSocket connection
-      console.log('Checking for product updates...')
-    }, 30000)
+      const livestreamProducts = JSON.parse(localStorage.getItem('livestream-products') || '[]')
+      if (livestreamProducts.length > 0) {
+        console.log('Found new livestream products, updating store...')
+        setStoreData(prev => {
+          if (!prev) return prev
+          const mockProducts = mockStoreData['trendy-fashion-x5k9j'].products
+          return {
+            ...prev,
+            products: [...mockProducts, ...livestreamProducts]
+          }
+        })
+      }
+    }, 5000)
 
     return () => clearInterval(interval)
   }, [subdomain])
@@ -211,6 +232,16 @@ export default function StorefrontPage() {
             </button>
           </div>
         </div>
+
+        {/* Livestream Products Notice */}
+        {storeData.products.some((p: any) => p.uploadedAt) && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <h3 className="font-semibold text-green-900 mb-2">🔴 Live from Livestream!</h3>
+            <p className="text-green-700 text-sm">
+              {storeData.products.filter((p: any) => p.uploadedAt).length} products just added from our live video stream
+            </p>
+          </div>
+        )}
 
         {/* Main Content */}
         <div className="grid lg:grid-cols-4 gap-8">

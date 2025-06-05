@@ -310,6 +310,23 @@ export default function LivestreamConverterPage() {
     // Simulate API call to upload single product
     console.log('Uploading product to storefront:', product)
     
+    // Store the product in localStorage for the storefront to pick up
+    const existingProducts = JSON.parse(localStorage.getItem('livestream-products') || '[]')
+    const newProduct = {
+      id: Date.now() + Math.random(), // Unique ID
+      name: product.name || `Product ${Math.floor(product.timestamp)}s`,
+      price: product.price || Math.floor(Math.random() * 2000) + 500,
+      image: product.croppedImageUrl || product.imageUrl,
+      description: product.description || `Premium quality product from livestream at ${Math.floor(product.timestamp)} seconds`,
+      inStock: true,
+      timestamp: product.timestamp,
+      uploadedAt: new Date().toISOString()
+    }
+    
+    existingProducts.push(newProduct)
+    localStorage.setItem('livestream-products', JSON.stringify(existingProducts))
+    console.log('✓ Product saved to localStorage for storefront:', newProduct)
+    
     // In production, this would be an actual API call
     return new Promise(resolve => setTimeout(resolve, 500))
   }
@@ -731,6 +748,16 @@ export default function LivestreamConverterPage() {
               >
                 <RotateCcw size={20} />
                 Process Another Video
+              </button>
+              
+              <button
+                onClick={() => {
+                  localStorage.removeItem('livestream-products')
+                  alert('Cleared all livestream products from storefront')
+                }}
+                className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Clear Storefront Products
               </button>
             </div>
           </div>
