@@ -65,11 +65,17 @@ export default function VideoProcessor({
       return
     }
 
-    if (!duration || duration === 0) {
-      console.error('Video duration not available')
+    const videoDuration = videoRef.current.duration
+    console.log('Extract function - videoDuration:', videoDuration, 'state duration:', duration)
+
+    if (!videoDuration || videoDuration === 0 || isNaN(videoDuration) || !isFinite(videoDuration)) {
+      console.error('Video duration not available. videoDuration:', videoDuration, 'state duration:', duration)
       alert('Please wait for the video to load completely before extracting products.')
       return
     }
+
+    // Use the actual video duration instead of state
+    const actualDuration = videoDuration
 
     setIsExtracting(true)
     setExtractionProgress(0)
@@ -78,16 +84,18 @@ export default function VideoProcessor({
     const products: ExtractedProduct[] = []
     const interval = 5 // 5 seconds
     
-    console.log(`Starting extraction for video duration: ${duration} seconds`)
+    console.log(`Starting extraction for video duration: ${actualDuration} seconds`)
     
     // Reset video to start
     video.currentTime = 0
     
     return new Promise<void>((resolve) => {
       const timeMarks: number[] = []
-      for (let t = 0; t < duration; t += interval) {
+      for (let t = 0; t < actualDuration; t += interval) {
         timeMarks.push(t)
       }
+      
+      console.log('Time marks for extraction:', timeMarks)
       
       let currentIndex = 0
       
@@ -106,6 +114,7 @@ export default function VideoProcessor({
         video.currentTime = timestamp
         
         const handleSeeked = () => {
+          console.log(`Seeked to ${timestamp}s, processing frame...`)
           // Small delay to ensure frame is fully loaded
           setTimeout(() => {
             const imageUrl = captureFrame()
@@ -120,9 +129,9 @@ export default function VideoProcessor({
               
               products.push(product)
               setExtractedProducts([...products])
-              console.log(`Extracted frame at ${timestamp}s`)
+              console.log(`✓ Extracted frame at ${timestamp}s`)
             } else {
-              console.warn(`Failed to capture frame at ${timestamp}s`)
+              console.warn(`✗ Failed to capture frame at ${timestamp}s`)
             }
             
             currentIndex++
@@ -131,11 +140,40 @@ export default function VideoProcessor({
             onProgress(progress)
             
             video.removeEventListener('seeked', handleSeeked)
+            video.removeEventListener('error', handleSeekError)
             processNextFrame()
           }, 200) // Increased delay for better frame loading
         }
         
+        const handleSeekError = () => {
+          console.error(`Seek error at ${timestamp}s`)
+          video.removeEventListener('seeked', handleSeeked)
+          video.removeEventListener('error', handleSeekError)
+          currentIndex++
+          processNextFrame()
+        }
+        
+        // Add timeout to prevent getting stuck
+        const seekTimeout = setTimeout(() => {
+          console.warn(`Seek timeout at ${timestamp}s, moving to next frame`)
+          video.removeEventListener('seeked', handleSeeked)
+          video.removeEventListener('error', handleSeekError)
+          currentIndex++
+          processNextFrame()
+        }, 5000)
+        
         video.addEventListener('seeked', handleSeeked)
+        video.addEventListener('error', handleSeekError)
+        
+        // Clear timeout when seek completes
+        const originalHandleSeeked = handleSeeked
+        const wrappedHandleSeeked = () => {
+          clearTimeout(seekTimeout)
+          originalHandleSeeked()
+        }
+        
+        video.removeEventListener('seeked', handleSeeked)
+        video.addEventListener('seeked', wrappedHandleSeeked)
       }
       
       processNextFrame()
@@ -210,13 +248,17 @@ export default function VideoProcessor({
     setIsVideoLoading(false)
     
     let errorMessage = 'Failed to load video. '
-    if (error) {
+    
+    // Check for CORS error specifically
+    if (videoUrl.includes('facebook.com') || videoUrl.includes('fb.watch')) {
+      errorMessage = 'Facebook video blocked by CORS policy. Facebook videos cannot be loaded directly in web browsers due to security restrictions. This is expected behavior - the app should have used a sample video instead.'
+    } else if (error) {
       switch (error.code) {
         case 1:
           errorMessage += 'Video loading was aborted.'
           break
         case 2:
-          errorMessage += 'Network error occurred while loading video.'
+          errorMessage += 'Network error occurred while loading video. This might be a CORS issue.'
           break
         case 3:
           errorMessage += 'Video format is corrupted or unsupported.'
@@ -229,11 +271,14 @@ export default function VideoProcessor({
       }
     }
     
-    if (videoUrl.includes('facebook.com') || videoUrl.includes('fb.watch')) {
-      errorMessage += ' For Facebook URLs: Make sure you checked the "FORCE USE URL" checkbox and try again.'
-    }
-    
     setVideoError(errorMessage)
+    
+    // For Facebook URLs, don't retry as CORS will always fail
+    if (videoUrl.includes('facebook.com') || videoUrl.includes('fb.watch')) {
+      console.log('Facebook URL CORS error detected - not retrying as this will always fail')
+      alert('Facebook videos cannot be loaded directly due to browser security (CORS) restrictions. Please go back and the system will use a sample video for demonstration.')
+      return
+    }
     
     // Don't show alert immediately if we can retry
     if (retryCount < 3) {

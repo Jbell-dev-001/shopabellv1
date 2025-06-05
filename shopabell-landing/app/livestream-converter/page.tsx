@@ -154,11 +154,19 @@ export default function LivestreamConverterPage() {
           resolve(facebookUrl)
         }
         
-        // If user forced direct URL usage, skip test
+        // If user forced direct URL usage, still check for Facebook URLs
         if (forceDirectUrl) {
           console.log('🚀 Force direct URL enabled, using provided URL without testing')
           clearTimeout(timeoutId)
-          resolve(facebookUrl)
+          
+          // Even with force enabled, Facebook URLs will fail due to CORS
+          if (facebookUrl.includes('facebook.com') || facebookUrl.includes('fb.watch')) {
+            console.log('⚠️ Facebook URL detected with force enabled - will likely fail due to CORS. Using sample video instead.')
+            const sampleVideoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+            resolve(sampleVideoUrl)
+          } else {
+            resolve(facebookUrl)
+          }
           return
         }
         
@@ -521,20 +529,24 @@ export default function LivestreamConverterPage() {
                     </div>
                   )}
                   
-                  <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
-                    <h3 className="font-bold text-red-900 mb-3 text-lg">🚨 IMPORTANT: How Video URLs Work</h3>
-                    <div className="text-base text-red-800 space-y-3 font-semibold">
-                      <div className="bg-red-100 p-3 rounded">
-                        <strong>✅ Facebook URLs:</strong>
-                        <br />CHECK THE &quot;FORCE USE URL&quot; CHECKBOX ABOVE to use your Facebook URL directly!
+                  <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4">
+                    <h3 className="font-bold text-blue-900 mb-3 text-lg">📘 How Video URLs Work</h3>
+                    <div className="text-base text-blue-800 space-y-3 font-semibold">
+                      <div className="bg-blue-100 p-3 rounded">
+                        <strong>✅ Direct Video Links (.mp4, .webm, .mov):</strong>
+                        <br />Use the &quot;FORCE USE URL&quot; checkbox for best results with direct video files
                       </div>
                       <div className="bg-orange-100 p-3 rounded">
-                        <strong>⚠️ Without the checkbox:</strong>
-                        <br />Facebook URLs will default to a sample video due to access restrictions
+                        <strong>⚠️ Facebook URLs:</strong>
+                        <br />Will automatically use a sample video due to browser security (CORS) restrictions
+                      </div>
+                      <div className="bg-yellow-100 p-3 rounded">
+                        <strong>🔧 For Real Facebook Videos:</strong>
+                        <br />Right-click video → &quot;Copy video address&quot; to get a direct .mp4 link instead
                       </div>
                     </div>
-                    <p className="text-sm text-red-700 mt-3 bg-red-100 p-2 rounded font-bold">
-                      <strong>💡 TIP:</strong> Always check the &quot;FORCE USE URL&quot; box for Facebook videos!
+                    <p className="text-sm text-blue-700 mt-3 bg-blue-100 p-2 rounded font-bold">
+                      <strong>💡 TIP:</strong> Facebook share URLs cannot be loaded directly in browsers - this is normal!
                     </p>
                   </div>
                 </div>
