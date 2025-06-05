@@ -210,9 +210,9 @@ export default function WhatsAppOnboarding() {
                     : 'bg-white rounded-bl-none'
                 } shadow-sm`}
               >
-                <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+                <p className="text-sm text-gray-900 whitespace-pre-wrap">{message.text}</p>
                 <div className="flex items-center justify-end gap-1 mt-1">
-                  <span className="text-xs text-gray-500">{message.time}</span>
+                  <span className="text-xs text-gray-600">{message.time}</span>
                   {message.sender === 'user' && (
                     <div className="text-blue-500">
                       {message.status === 'read' ? <CheckCheck size={16} /> : <Check size={16} />}
@@ -248,7 +248,7 @@ export default function WhatsAppOnboarding() {
           onChange={(e) => setInputValue(e.target.value)}
           onKeyPress={handleKeyPress}
           placeholder="Type a message"
-          className="flex-1 px-4 py-2 bg-gray-100 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-[#075E54]"
+          className="flex-1 px-4 py-2 bg-gray-100 rounded-full text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#075E54]"
           disabled={isTyping}
         />
         <button
