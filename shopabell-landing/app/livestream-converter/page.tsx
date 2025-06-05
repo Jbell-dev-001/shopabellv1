@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Upload, Play, RotateCcw, Download, Edit3 } from 'lucide-react'
 import VideoProcessor from '@/components/livestream/VideoProcessor'
-import ProductEditor from '@/components/livestream/ProductEditor'
 
 interface ExtractedProduct {
   id: string
@@ -22,10 +21,10 @@ export default function LivestreamConverterPage() {
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [videoUrl, setVideoUrl] = useState<string>('')
   const [extractedProducts, setExtractedProducts] = useState<ExtractedProduct[]>([])
-  const [selectedProduct, setSelectedProduct] = useState<ExtractedProduct | null>(null)
-  const [currentStep, setCurrentStep] = useState<'upload' | 'extract' | 'edit' | 'uploaded'>('upload')
+  const [currentStep, setCurrentStep] = useState<'upload' | 'extract' | 'processing' | 'uploaded'>('upload')
   const [isLivestream, setIsLivestream] = useState(false)
   const [uploadedProducts, setUploadedProducts] = useState<ExtractedProduct[]>([])
+  const [processingProgress, setProcessingProgress] = useState(0)
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -37,25 +36,96 @@ export default function LivestreamConverterPage() {
     }
   }
 
-  const handleProductsExtracted = (products: ExtractedProduct[]) => {
+  const handleProductsExtracted = async (products: ExtractedProduct[]) => {
     setExtractedProducts(products)
-    setCurrentStep('edit')
+    setCurrentStep('processing')
+    
+    // Auto-process all products
+    await autoProcessAllProducts(products)
   }
 
-  const handleProductUpdate = async (updatedProduct: ExtractedProduct) => {
-    // Update the product in the list
-    setExtractedProducts(prev => 
-      prev.map(p => p.id === updatedProduct.id ? updatedProduct : p)
-    )
-    setSelectedProduct(null)
-
-    // Auto-upload after editing with delay for livestreams
-    const uploadDelay = isLivestream ? 120000 : 0 // 2 minutes for livestream, immediate for recorded
+  const autoProcessAllProducts = async (products: ExtractedProduct[]) => {
+    const processedProducts: ExtractedProduct[] = []
     
-    setTimeout(async () => {
-      await uploadSingleProduct(updatedProduct)
-      setUploadedProducts(prev => [...prev, updatedProduct])
-    }, uploadDelay)
+    for (let i = 0; i < products.length; i++) {
+      const product = products[i]
+      const progress = ((i + 1) / products.length) * 100
+      setProcessingProgress(progress)
+      
+      // Auto-enhance the product
+      const enhancedProduct = await autoEnhanceProduct(product)
+      processedProducts.push(enhancedProduct)
+      
+      // Auto-upload with delay for livestreams
+      const uploadDelay = isLivestream ? 120000 : 1000 // 2 minutes for livestream, 1 second for recorded
+      
+      setTimeout(async () => {
+        await uploadSingleProduct(enhancedProduct)
+        setUploadedProducts(prev => [...prev, enhancedProduct])
+        
+        // If this is the last product, show uploaded summary
+        if (i === products.length - 1) {
+          setTimeout(() => setCurrentStep('uploaded'), 1000)
+        }
+      }, uploadDelay)
+    }
+    
+    setExtractedProducts(processedProducts)
+  }
+
+  const autoEnhanceProduct = async (product: ExtractedProduct): Promise<ExtractedProduct> => {
+    // Auto-crop to standard dimensions (1:1 square)
+    const croppedImageUrl = await autoCropToSquare(product.imageUrl)
+    
+    // Generate automatic product details
+    const autoName = `Product ${Math.floor(product.timestamp)}s`
+    const autoPrice = Math.floor(Math.random() * 2000) + 500 // Random price between 500-2500
+    const autoDescription = `Premium quality product from livestream at ${Math.floor(product.timestamp)} seconds`
+    
+    return {
+      ...product,
+      croppedImageUrl,
+      name: autoName,
+      price: autoPrice,
+      description: autoDescription,
+      quantity: 1,
+      isProcessed: true
+    }
+  }
+
+  const autoCropToSquare = async (imageUrl: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        
+        if (!ctx) {
+          resolve(imageUrl)
+          return
+        }
+        
+        // Set standard square dimensions
+        const size = 400
+        canvas.width = size
+        canvas.height = size
+        
+        // Calculate crop area (center square)
+        const sourceSize = Math.min(img.width, img.height)
+        const sourceX = (img.width - sourceSize) / 2
+        const sourceY = (img.height - sourceSize) / 2
+        
+        // Draw cropped image
+        ctx.drawImage(
+          img,
+          sourceX, sourceY, sourceSize, sourceSize,
+          0, 0, size, size
+        )
+        
+        resolve(canvas.toDataURL('image/jpeg', 0.8))
+      }
+      img.src = imageUrl
+    })
   }
 
   const uploadSingleProduct = async (product: ExtractedProduct) => {
@@ -66,17 +136,14 @@ export default function LivestreamConverterPage() {
     return new Promise(resolve => setTimeout(resolve, 500))
   }
 
-  const showUploadedSummary = () => {
-    setCurrentStep('uploaded')
-  }
 
   const resetProcess = () => {
     setVideoFile(null)
     setVideoUrl('')
     setExtractedProducts([])
-    setSelectedProduct(null)
     setUploadedProducts([])
     setIsLivestream(false)
+    setProcessingProgress(0)
     setCurrentStep('upload')
     if (videoUrl) {
       URL.revokeObjectURL(videoUrl)
@@ -110,8 +177,8 @@ export default function LivestreamConverterPage() {
             Livestream to Catalog Converter 📹➡️📦
           </h1>
           <p className="text-gray-600 max-w-3xl mx-auto">
-            Upload your livestream recording and automatically extract product screenshots every 5 seconds. 
-            Crop, enhance, and create catalog listings that upload directly to your storefront.
+            Upload your livestream recording and automatically extract, process, and upload product screenshots every 5 seconds. 
+            Everything happens automatically - no manual editing required!
           </p>
         </div>
 
@@ -120,15 +187,15 @@ export default function LivestreamConverterPage() {
           <div className="flex items-center justify-center space-x-4">
             {[
               { step: 'upload', label: 'Upload Video', icon: Upload },
-              { step: 'extract', label: 'Extract Products', icon: Play },
-              { step: 'edit', label: 'Edit & Auto-Upload', icon: Edit3 },
+              { step: 'extract', label: 'Extract Screenshots', icon: Play },
+              { step: 'processing', label: 'Auto-Process', icon: Edit3 },
               { step: 'uploaded', label: 'Live on Store', icon: Download }
             ].map(({ step, label, icon: Icon }, index) => (
               <div key={step} className="flex items-center">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                   currentStep === step 
                     ? 'bg-purple-600 text-white' 
-                    : extractedProducts.length > 0 && index < ['upload', 'extract', 'edit', 'uploaded'].indexOf(currentStep)
+                    : extractedProducts.length > 0 && index < ['upload', 'extract', 'processing', 'uploaded'].indexOf(currentStep)
                     ? 'bg-green-600 text-white'
                     : 'bg-gray-200 text-gray-600'
                 }`}>
@@ -216,99 +283,90 @@ export default function LivestreamConverterPage() {
           />
         )}
 
-        {currentStep === 'edit' && extractedProducts.length > 0 && (
-          <div className="grid lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2">
-              <div className="bg-white rounded-xl p-6 shadow-lg">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold text-gray-900">
-                    Extracted Products ({extractedProducts.length})
-                  </h2>
-                  <button
-                    onClick={resetProcess}
-                    className="px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-2"
-                  >
-                    <RotateCcw size={16} />
-                    Start Over
-                  </button>
-                </div>
+        {currentStep === 'processing' && (
+          <div className="bg-white rounded-xl p-8 shadow-lg max-w-4xl mx-auto">
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Edit3 className="w-10 h-10 text-purple-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Auto-Processing Products</h2>
+              <p className="text-gray-600">
+                Automatically cropping, enhancing, and uploading {extractedProducts.length} products...
+              </p>
+            </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+            {/* Progress Bar */}
+            <div className="mb-8">
+              <div className="flex justify-between text-sm text-gray-600 mb-2">
+                <span>Processing products...</span>
+                <span>{Math.round(processingProgress)}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <div 
+                  className="bg-purple-600 h-3 rounded-full transition-all duration-300"
+                  style={{ width: `${processingProgress}%` }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Processing Steps */}
+            <div className="grid md:grid-cols-3 gap-6 mb-8">
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-white font-bold">1</span>
+                </div>
+                <h3 className="font-semibold text-gray-900 mb-2">Auto-Crop</h3>
+                <p className="text-sm text-gray-600">
+                  Cropping all images to 400x400px squares for consistency
+                </p>
+              </div>
+              
+              <div className="text-center p-4 bg-green-50 rounded-lg">
+                <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-white font-bold">2</span>
+                </div>
+                <h3 className="font-semibold text-gray-900 mb-2">Auto-Enhance</h3>
+                <p className="text-sm text-gray-600">
+                  Adding product names, prices, and descriptions automatically
+                </p>
+              </div>
+              
+              <div className="text-center p-4 bg-purple-50 rounded-lg">
+                <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-white font-bold">3</span>
+                </div>
+                <h3 className="font-semibold text-gray-900 mb-2">Auto-Upload</h3>
+                <p className="text-sm text-gray-600">
+                  Uploading to storefront {isLivestream ? 'after 2-min delay' : 'immediately'}
+                </p>
+              </div>
+            </div>
+
+            {/* Product Preview Grid */}
+            {extractedProducts.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-4">Processing Preview</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   {extractedProducts.map((product) => (
-                    <div
-                      key={product.id}
-                      className="relative group cursor-pointer"
-                      onClick={() => setSelectedProduct(product)}
-                    >
+                    <div key={product.id} className="relative">
                       <img
                         src={product.croppedImageUrl || product.imageUrl}
                         alt={`Product at ${product.timestamp}s`}
-                        className="w-full aspect-square object-cover rounded-lg border-2 border-gray-200 hover:border-purple-500 transition-colors"
+                        className="w-full aspect-square object-cover rounded-lg border border-gray-200"
                       />
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 rounded-lg transition-all flex items-center justify-center">
-                        <Edit3 className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                      <div className="absolute bottom-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                      <div className="absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-1 py-0.5 rounded">
                         {Math.floor(product.timestamp)}s
                       </div>
                       {product.isProcessed && (
-                        <div className="absolute top-2 right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                        <div className="absolute top-1 right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
                           <span className="text-white text-xs">✓</span>
                         </div>
                       )}
                     </div>
                   ))}
                 </div>
-
-                <div className="space-y-4">
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <h3 className="font-semibold text-green-900 mb-2">✅ Auto-Upload Active</h3>
-                    <p className="text-sm text-green-700">
-                      Products automatically upload {isLivestream ? 'after 2-minute delay' : 'immediately'} when you finish editing them.
-                      {uploadedProducts.length > 0 && ` ${uploadedProducts.length} products already uploaded.`}
-                    </p>
-                  </div>
-                  
-                  {uploadedProducts.length > 0 && (
-                    <button
-                      onClick={showUploadedSummary}
-                      className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Download size={20} />
-                      View {uploadedProducts.length} Uploaded Products
-                    </button>
-                  )}
-                </div>
               </div>
-            </div>
-
-            <div className="lg:col-span-1">
-              {selectedProduct ? (
-                <ProductEditor
-                  product={selectedProduct}
-                  onUpdate={handleProductUpdate}
-                  onClose={() => setSelectedProduct(null)}
-                />
-              ) : (
-                <div className="bg-white rounded-xl p-6 shadow-lg">
-                  <h3 className="font-bold text-gray-900 mb-4">Instructions</h3>
-                  <div className="space-y-3 text-sm text-gray-600">
-                    <p>Click on any screenshot to edit and enhance it:</p>
-                    <ul className="space-y-2">
-                      <li>• Crop the image to focus on the product</li>
-                      <li>• Add product name and description</li>
-                      <li>• Set price and quantity</li>
-                      <li>• Mark as ready for catalog</li>
-                    </ul>
-                    <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
-                      <p className="text-yellow-800 text-xs">
-                        <strong>Tip:</strong> Process images in order of appearance for better organization
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            )}
           </div>
         )}
 
@@ -329,10 +387,15 @@ export default function LivestreamConverterPage() {
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
               <h3 className="font-semibold text-blue-900 mb-2">📝 Edit Products Anytime</h3>
-              <p className="text-sm text-blue-700">
-                Visit your storefront dashboard to update prices, descriptions, quantities, 
-                and other product details after upload.
+              <p className="text-sm text-blue-700 mb-3">
+                All products were automatically processed and uploaded. You can now edit details in your dashboard:
               </p>
+              <ul className="text-sm text-blue-700 space-y-1">
+                <li>• Update product names and descriptions</li>
+                <li>• Adjust prices and quantities</li>
+                <li>• Add more product details</li>
+                <li>• Change product categories</li>
+              </ul>
             </div>
 
             <div className="flex gap-4 justify-center">
