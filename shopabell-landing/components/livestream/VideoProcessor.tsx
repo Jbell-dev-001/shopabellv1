@@ -16,7 +16,7 @@ interface ExtractedProduct {
 }
 
 interface VideoProcessorProps {
-  videoFile: File
+  videoFile?: File | null
   videoUrl: string
   onProductsExtracted: (products: ExtractedProduct[]) => void
   onProgress: (progress: number) => void

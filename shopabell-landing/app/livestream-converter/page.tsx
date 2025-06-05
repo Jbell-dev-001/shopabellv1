@@ -124,14 +124,24 @@ export default function LivestreamConverterPage() {
   }
 
   const handleProductsExtracted = async (products: ExtractedProduct[]) => {
+    console.log('=== Products Extracted ===')
+    console.log('Number of products extracted:', products.length)
+    console.log('Products:', products)
+    console.log('Current step before transition:', currentStep)
+    
     setExtractedProducts(products)
     setCurrentStep('processing')
+    
+    console.log('Step set to processing, starting auto-processing...')
     
     // Auto-process all products
     await autoProcessAllProducts(products)
   }
 
   const autoProcessAllProducts = async (products: ExtractedProduct[]) => {
+    console.log('=== Starting Auto-Processing ===')
+    console.log('Products to process:', products.length)
+    
     const processedProducts: ExtractedProduct[] = []
     
     for (let i = 0; i < products.length; i++) {
@@ -281,6 +291,11 @@ export default function LivestreamConverterPage() {
             Upload your livestream recording and automatically extract, process, and upload product screenshots every 5 seconds. 
             Everything happens automatically - no manual editing required!
           </p>
+          
+          {/* Debug step display */}
+          <div className="mt-4 p-2 bg-gray-100 rounded text-sm font-mono">
+            DEBUG: currentStep = &quot;{currentStep}&quot; | extractedProducts.length = {extractedProducts.length}
+          </div>
         </div>
 
         {/* Progress Steps */}
@@ -474,7 +489,7 @@ export default function LivestreamConverterPage() {
           </div>
         )}
 
-        {currentStep === 'extract' && videoFile && (
+        {currentStep === 'extract' && (videoFile || videoUrl) && (
           <VideoProcessor
             videoFile={videoFile}
             videoUrl={videoUrl}
