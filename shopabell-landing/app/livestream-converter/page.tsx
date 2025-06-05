@@ -20,11 +20,14 @@ interface ExtractedProduct {
 export default function LivestreamConverterPage() {
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [videoUrl, setVideoUrl] = useState<string>('')
+  const [facebookUrl, setFacebookUrl] = useState<string>('')
+  const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file')
   const [extractedProducts, setExtractedProducts] = useState<ExtractedProduct[]>([])
   const [currentStep, setCurrentStep] = useState<'upload' | 'extract' | 'processing' | 'uploaded'>('upload')
   const [isLivestream, setIsLivestream] = useState(false)
   const [uploadedProducts, setUploadedProducts] = useState<ExtractedProduct[]>([])
   const [processingProgress, setProcessingProgress] = useState(0)
+  const [urlError, setUrlError] = useState<string>('')
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -32,8 +35,82 @@ export default function LivestreamConverterPage() {
       setVideoFile(file)
       const url = URL.createObjectURL(file)
       setVideoUrl(url)
+      setUrlError('')
       setCurrentStep('extract')
     }
+  }
+
+  const validateVideoUrl = (url: string): boolean => {
+    // Basic URL validation
+    try {
+      new URL(url)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const extractVideoId = (url: string): string | null => {
+    // Facebook video URL patterns
+    const patterns = [
+      /facebook\.com\/.*\/videos\/(\d+)/,
+      /facebook\.com\/watch\/\?v=(\d+)/,
+      /fb\.watch\/([a-zA-Z0-9]+)/,
+      /facebook\.com\/[^\/]+\/videos\/[^\/]+\/(\d+)/
+    ]
+    
+    for (const pattern of patterns) {
+      const match = url.match(pattern)
+      if (match) return match[1]
+    }
+    return null
+  }
+
+  const handleUrlSubmit = async () => {
+    setUrlError('')
+    
+    if (!facebookUrl.trim()) {
+      setUrlError('Please enter a Facebook video URL')
+      return
+    }
+
+    if (!validateVideoUrl(facebookUrl)) {
+      setUrlError('Please enter a valid URL')
+      return
+    }
+
+    const videoId = extractVideoId(facebookUrl)
+    if (!videoId) {
+      setUrlError('Please enter a valid Facebook video URL')
+      return
+    }
+
+    try {
+      // For demo purposes, we'll use a placeholder video URL
+      // In production, you'd use Facebook Graph API or a video processing service
+      const processedUrl = await processVideoUrl()
+      setVideoUrl(processedUrl)
+      setCurrentStep('extract')
+    } catch {
+      setUrlError('Unable to process this video URL. Please try a different link or upload the video file directly.')
+    }
+  }
+
+  const processVideoUrl = async (): Promise<string> => {
+    // Simulate processing Facebook video URL
+    // In production, this would involve:
+    // 1. Facebook Graph API to get video metadata
+    // 2. Extract direct video URL
+    // 3. Handle authentication and permissions
+    
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // For demo, we'll use a sample video URL
+        // In production, replace with actual Facebook video processing
+        const sampleVideoUrl = 'https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4'
+        resolve(sampleVideoUrl)
+      }, 2000)
+    })
   }
 
   const handleProductsExtracted = async (products: ExtractedProduct[]) => {
@@ -140,12 +217,15 @@ export default function LivestreamConverterPage() {
   const resetProcess = () => {
     setVideoFile(null)
     setVideoUrl('')
+    setFacebookUrl('')
     setExtractedProducts([])
     setUploadedProducts([])
     setIsLivestream(false)
     setProcessingProgress(0)
+    setUploadMethod('file')
+    setUrlError('')
     setCurrentStep('upload')
-    if (videoUrl) {
+    if (videoUrl && videoFile) {
       URL.revokeObjectURL(videoUrl)
     }
   }
@@ -217,28 +297,90 @@ export default function LivestreamConverterPage() {
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">Upload Livestream Video</h2>
               <p className="text-gray-600 mb-6">
-                Choose a recorded livestream video file to extract product screenshots
+                Upload a video file or paste a Facebook video link to extract product screenshots
               </p>
 
-              <label className="block">
-                <input
-                  type="file"
-                  accept="video/*"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-                <div className="border-2 border-dashed border-purple-300 rounded-lg p-8 hover:border-purple-500 cursor-pointer transition-colors">
-                  <div className="text-center">
-                    <Upload className="w-12 h-12 text-purple-500 mx-auto mb-4" />
-                    <p className="text-lg font-medium text-gray-900 mb-2">
-                      Drop your video here or click to browse
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Supports MP4, MOV, AVI, WebM formats
-                    </p>
+              {/* Upload Method Tabs */}
+              <div className="flex bg-gray-100 rounded-lg p-1 mb-6">
+                <button
+                  onClick={() => setUploadMethod('file')}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                    uploadMethod === 'file'
+                      ? 'bg-white text-purple-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  📁 Upload File
+                </button>
+                <button
+                  onClick={() => setUploadMethod('url')}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                    uploadMethod === 'url'
+                      ? 'bg-white text-purple-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  🔗 Facebook Link
+                </button>
+              </div>
+
+              {uploadMethod === 'file' ? (
+                <label className="block">
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <div className="border-2 border-dashed border-purple-300 rounded-lg p-8 hover:border-purple-500 cursor-pointer transition-colors">
+                    <div className="text-center">
+                      <Upload className="w-12 h-12 text-purple-500 mx-auto mb-4" />
+                      <p className="text-lg font-medium text-gray-900 mb-2">
+                        Drop your video here or click to browse
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Supports MP4, MOV, AVI, WebM formats
+                      </p>
+                    </div>
+                  </div>
+                </label>
+              ) : (
+                <div className="space-y-4">
+                  <div className="text-left">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Facebook Video URL
+                    </label>
+                    <input
+                      type="url"
+                      value={facebookUrl}
+                      onChange={(e) => setFacebookUrl(e.target.value)}
+                      placeholder="https://www.facebook.com/watch/?v=123456789"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                    />
+                    {urlError && (
+                      <p className="mt-2 text-sm text-red-600">{urlError}</p>
+                    )}
+                  </div>
+                  
+                  <button
+                    onClick={handleUrlSubmit}
+                    disabled={!facebookUrl.trim()}
+                    className="w-full py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  >
+                    Process Facebook Video
+                  </button>
+                  
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h3 className="font-semibold text-blue-900 mb-2">📘 Supported Facebook URLs:</h3>
+                    <ul className="text-sm text-blue-700 space-y-1">
+                      <li>• facebook.com/watch/?v=123456789</li>
+                      <li>• facebook.com/username/videos/123456789</li>
+                      <li>• fb.watch/abc123</li>
+                      <li>• facebook.com/page/videos/name/123456789</li>
+                    </ul>
                   </div>
                 </div>
-              </label>
+              )}
 
               <div className="grid md:grid-cols-2 gap-4 mt-6">
                 <div className="p-4 bg-blue-50 rounded-lg">
