@@ -35,6 +35,7 @@ export default function VideoProcessor({
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [extractionProgress, setExtractionProgress] = useState(0)
+  const [isVideoLoading, setIsVideoLoading] = useState(true)
 
   const captureFrame = (): string => {
     const video = videoRef.current
@@ -57,7 +58,16 @@ export default function VideoProcessor({
   }
 
   const extractProducts = async () => {
-    if (!videoRef.current) return
+    if (!videoRef.current) {
+      console.error('Video element not found')
+      return
+    }
+
+    if (!duration || duration === 0) {
+      console.error('Video duration not available')
+      alert('Please wait for the video to load completely before extracting products.')
+      return
+    }
 
     setIsExtracting(true)
     setExtractionProgress(0)
@@ -65,6 +75,8 @@ export default function VideoProcessor({
     const video = videoRef.current
     const products: ExtractedProduct[] = []
     const interval = 5 // 5 seconds
+    
+    console.log(`Starting extraction for video duration: ${duration} seconds`)
     
     // Reset video to start
     video.currentTime = 0
@@ -106,6 +118,9 @@ export default function VideoProcessor({
               
               products.push(product)
               setExtractedProducts([...products])
+              console.log(`Extracted frame at ${timestamp}s`)
+            } else {
+              console.warn(`Failed to capture frame at ${timestamp}s`)
             }
             
             currentIndex++
@@ -115,7 +130,7 @@ export default function VideoProcessor({
             
             video.removeEventListener('seeked', handleSeeked)
             processNextFrame()
-          }, 100)
+          }, 200) // Increased delay for better frame loading
         }
         
         video.addEventListener('seeked', handleSeeked)
@@ -144,8 +159,17 @@ export default function VideoProcessor({
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
-      setDuration(videoRef.current.duration)
+      const videoDuration = videoRef.current.duration
+      setDuration(videoDuration)
+      setIsVideoLoading(false)
+      console.log(`Video loaded successfully. Duration: ${videoDuration} seconds`)
     }
+  }
+
+  const handleVideoError = () => {
+    console.error('Video failed to load')
+    setIsVideoLoading(false)
+    alert('Failed to load video. Please try uploading a different video file or check your internet connection.')
   }
 
   const formatTime = (time: number): string => {
@@ -168,11 +192,13 @@ export default function VideoProcessor({
       video.addEventListener('timeupdate', handleTimeUpdate)
       video.addEventListener('loadedmetadata', handleLoadedMetadata)
       video.addEventListener('ended', () => setIsPlaying(false))
+      video.addEventListener('error', handleVideoError)
       
       return () => {
         video.removeEventListener('timeupdate', handleTimeUpdate)
         video.removeEventListener('loadedmetadata', handleLoadedMetadata)
         video.removeEventListener('ended', () => setIsPlaying(false))
+        video.removeEventListener('error', handleVideoError)
       }
     }
   }, [])
@@ -191,7 +217,18 @@ export default function VideoProcessor({
               className="w-full h-auto"
               controls={false}
               preload="metadata"
+              crossOrigin="anonymous"
             />
+            
+            {/* Loading Overlay */}
+            {isVideoLoading && (
+              <div className="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center">
+                <div className="text-center text-white">
+                  <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                  <p>Loading video...</p>
+                </div>
+              </div>
+            )}
             
             {/* Custom Controls Overlay */}
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-4">
@@ -225,7 +262,7 @@ export default function VideoProcessor({
           {/* Extract Button */}
           <button
             onClick={extractProducts}
-            disabled={isExtracting || !duration}
+            disabled={isExtracting || !duration || isVideoLoading}
             className="w-full py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isExtracting ? (

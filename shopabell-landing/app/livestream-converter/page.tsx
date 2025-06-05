@@ -104,9 +104,9 @@ export default function LivestreamConverterPage() {
     
     return new Promise((resolve) => {
       setTimeout(() => {
-        // For demo, we'll use a sample video URL
-        // In production, replace with actual Facebook video processing
-        const sampleVideoUrl = 'https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4'
+        // For demo, we'll use a publicly accessible video URL
+        // Using a reliable demo video that supports CORS
+        const sampleVideoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
         resolve(sampleVideoUrl)
       }, 2000)
     })
