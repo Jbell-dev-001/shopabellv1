@@ -56,8 +56,16 @@ export default function LivestreamConverterPage() {
   // Removed extractVideoId function as we're simplifying validation for demo
 
   const handleUrlSubmit = async () => {
+    console.log('=== Starting URL submission ===')
+    console.log('Before setState - isLoadingUrl:', isLoadingUrl)
     setUrlError('')
     setIsLoadingUrl(true)
+    console.log('After setIsLoadingUrl(true) called')
+    
+    // Force a small delay to see if state updates
+    setTimeout(() => {
+      console.log('State check after timeout - isLoadingUrl should be true')
+    }, 100)
     
     if (!facebookUrl.trim()) {
       setUrlError('Please enter a Facebook video URL')
@@ -83,13 +91,16 @@ export default function LivestreamConverterPage() {
     }
 
     try {
+      console.log('Processing URL...', facebookUrl)
       // For demo purposes, we'll process any valid Facebook URL
       // In production, you'd use Facebook Graph API or a video processing service
       const processedUrl = await processVideoUrl()
+      console.log('URL processed successfully:', processedUrl)
       setVideoUrl(processedUrl)
       setIsLoadingUrl(false)
       setCurrentStep('extract')
-    } catch {
+    } catch (error) {
+      console.error('URL processing failed:', error)
       setUrlError('Unable to process this video URL. Please try a different link or upload the video file directly.')
       setIsLoadingUrl(false)
     }
@@ -334,6 +345,11 @@ export default function LivestreamConverterPage() {
                 </button>
               </div>
 
+              {/* Debug state display */}
+              <div className="mb-4 p-2 bg-gray-100 rounded text-xs font-mono">
+                DEBUG: isLoadingUrl = {String(isLoadingUrl)} | urlError = "{urlError}" | facebookUrl = "{facebookUrl}"
+              </div>
+
               {uploadMethod === 'file' ? (
                 <label className="block">
                   <input
@@ -386,6 +402,26 @@ export default function LivestreamConverterPage() {
                       'Process Facebook Video'
                     )}
                   </button>
+                  
+                  {/* Debug indicator - More prominent */}
+                  {isLoadingUrl && (
+                    <div className="fixed top-4 right-4 z-50 p-4 bg-red-500 text-white rounded-lg shadow-lg">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span className="font-bold">LOADING STATE ACTIVE!</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Additional inline debug */}
+                  {isLoadingUrl && (
+                    <div className="mt-4 p-4 bg-yellow-100 border-2 border-yellow-500 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 border-2 border-yellow-600 border-t-transparent rounded-full animate-spin"></div>
+                        <span className="text-yellow-800 font-semibold">DEBUG: isLoadingUrl = {String(isLoadingUrl)}</span>
+                      </div>
+                    </div>
+                  )}
                   
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <h3 className="font-semibold text-blue-900 mb-2">📘 Supported Facebook URLs:</h3>
