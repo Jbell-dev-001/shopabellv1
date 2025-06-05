@@ -31,6 +31,7 @@ export default function LivestreamConverterPage() {
   const [isLoadingUrl, setIsLoadingUrl] = useState(false)
   const [currentProcessingStep, setCurrentProcessingStep] = useState<string>('')
   const [uploadingCount, setUploadingCount] = useState(0)
+  const [forceDirectUrl, setForceDirectUrl] = useState(false)
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -112,33 +113,78 @@ export default function LivestreamConverterPage() {
   }
 
   const processVideoUrl = async (): Promise<string> => {
-    // For demo purposes, we'll try to use the provided URL directly
-    // In production, this would involve Facebook Graph API processing
+    // Try to use the provided URL directly first
+    console.log('Processing video URL:', facebookUrl)
     
     return new Promise((resolve) => {
       setTimeout(() => {
-        // First, try to use the provided URL directly
-        if (facebookUrl.includes('mp4') || facebookUrl.includes('video') || facebookUrl.includes('media')) {
-          console.log('Using provided video URL directly:', facebookUrl)
-          resolve(facebookUrl)
-        } else {
-          // For actual Facebook URLs, we'd need to extract the video URL
-          // For demo, check if it's a direct video URL or fall back to sample
-          console.log('Facebook URL provided, trying to extract video...')
+        // Always try the provided URL first, regardless of domain
+        console.log('Attempting to use provided URL directly:', facebookUrl)
+        
+        // Test if the URL is accessible by creating a temporary video element
+        const testVideo = document.createElement('video')
+        testVideo.crossOrigin = 'anonymous'
+        testVideo.preload = 'metadata'
+        
+        const timeoutId = setTimeout(() => {
+          console.log('URL test timed out, URL may not be directly accessible')
+          // Clean up
+          testVideo.removeEventListener('loadedmetadata', onSuccess)
+          testVideo.removeEventListener('error', onError)
+          testVideo.src = ''
           
-          // Try common direct video URL patterns
+          // For Facebook URLs that can't be accessed directly, use sample
           if (facebookUrl.includes('facebook.com') || facebookUrl.includes('fb.watch')) {
-            // In production, use Facebook Graph API here
-            // For demo, use a sample video that supports CORS
-            console.log('Using sample video for Facebook URL demo')
+            console.log('Facebook URL requires special processing, using sample video')
             const sampleVideoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
             resolve(sampleVideoUrl)
           } else {
-            // If it's not a Facebook URL but looks like a direct video URL, try it
+            // For other URLs, try anyway - might work
+            console.log('Trying provided URL despite test timeout')
+            resolve(facebookUrl)
+          }
+        }, 5000) // 5 second timeout
+        
+        const onSuccess = () => {
+          console.log('✓ Video URL is accessible, using provided URL')
+          clearTimeout(timeoutId)
+          testVideo.removeEventListener('loadedmetadata', onSuccess)
+          testVideo.removeEventListener('error', onError)
+          testVideo.src = ''
+          resolve(facebookUrl)
+        }
+        
+        // If user forced direct URL usage, skip test
+        if (forceDirectUrl) {
+          console.log('🚀 Force direct URL enabled, using provided URL without testing')
+          clearTimeout(timeoutId)
+          resolve(facebookUrl)
+          return
+        }
+        
+        const onError = () => {
+          console.log('✗ Video URL is not accessible, checking alternatives')
+          clearTimeout(timeoutId)
+          testVideo.removeEventListener('loadedmetadata', onSuccess)
+          testVideo.removeEventListener('error', onError)
+          testVideo.src = ''
+          
+          // For Facebook URLs, use sample video
+          if (facebookUrl.includes('facebook.com') || facebookUrl.includes('fb.watch')) {
+            console.log('Facebook URL not directly accessible, using sample video')
+            const sampleVideoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+            resolve(sampleVideoUrl)
+          } else {
+            // For other URLs, try anyway - some might work despite test failure
+            console.log('Non-Facebook URL, trying anyway')
             resolve(facebookUrl)
           }
         }
-      }, 2000)
+        
+        testVideo.addEventListener('loadedmetadata', onSuccess)
+        testVideo.addEventListener('error', onError)
+        testVideo.src = facebookUrl
+      }, 1000) // Reduced delay to 1 second
     })
   }
 
@@ -274,6 +320,7 @@ export default function LivestreamConverterPage() {
     setIsLoadingUrl(false)
     setCurrentProcessingStep('')
     setUploadingCount(0)
+    setForceDirectUrl(false)
     setCurrentStep('upload')
     if (videoUrl && videoFile) {
       URL.revokeObjectURL(videoUrl)
@@ -422,6 +469,23 @@ export default function LivestreamConverterPage() {
                     )}
                   </div>
                   
+                  <div className="mt-3">
+                    <label className="flex items-center gap-3 p-4 bg-yellow-100 border-2 border-yellow-400 rounded-lg cursor-pointer hover:bg-yellow-200 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={forceDirectUrl}
+                        onChange={(e) => setForceDirectUrl(e.target.checked)}
+                        className="w-5 h-5 text-purple-600 rounded focus:ring-purple-500 border-2 border-gray-400"
+                      />
+                      <span className="text-base font-bold text-gray-900">
+                        🚀 FORCE USE THIS URL DIRECTLY (Click this for Facebook URLs!)
+                      </span>
+                    </label>
+                    <p className="mt-2 text-sm text-yellow-800 font-semibold bg-yellow-50 p-2 rounded">
+                      ⚡ Check this box to bypass URL testing and use your Facebook URL directly
+                    </p>
+                  </div>
+                  
                   <button
                     onClick={handleUrlSubmit}
                     disabled={!facebookUrl.trim() || isLoadingUrl}
@@ -457,17 +521,20 @@ export default function LivestreamConverterPage() {
                     </div>
                   )}
                   
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h3 className="font-semibold text-blue-900 mb-2">📘 Supported Video URLs:</h3>
-                    <ul className="text-sm text-blue-700 space-y-1">
-                      <li>• Direct video links (.mp4, .webm, .mov, .avi)</li>
-                      <li>• Facebook videos (facebook.com/watch, fb.watch)</li>
-                      <li>• Instagram reels or IGTV links</li>
-                      <li>• YouTube video URLs</li>
-                      <li>• Any publicly accessible video URL</li>
-                    </ul>
-                    <p className="text-xs text-blue-600 mt-2">
-                      <strong>Note:</strong> Direct .mp4 links work best. Social media URLs will be processed automatically.
+                  <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
+                    <h3 className="font-bold text-red-900 mb-3 text-lg">🚨 IMPORTANT: How Video URLs Work</h3>
+                    <div className="text-base text-red-800 space-y-3 font-semibold">
+                      <div className="bg-red-100 p-3 rounded">
+                        <strong>✅ Facebook URLs:</strong>
+                        <br />CHECK THE &quot;FORCE USE URL&quot; CHECKBOX ABOVE to use your Facebook URL directly!
+                      </div>
+                      <div className="bg-orange-100 p-3 rounded">
+                        <strong>⚠️ Without the checkbox:</strong>
+                        <br />Facebook URLs will default to a sample video due to access restrictions
+                      </div>
+                    </div>
+                    <p className="text-sm text-red-700 mt-3 bg-red-100 p-2 rounded font-bold">
+                      <strong>💡 TIP:</strong> Always check the &quot;FORCE USE URL&quot; box for Facebook videos!
                     </p>
                   </div>
                 </div>
