@@ -36,6 +36,8 @@ export default function VideoProcessor({
   const [duration, setDuration] = useState(0)
   const [extractionProgress, setExtractionProgress] = useState(0)
   const [isVideoLoading, setIsVideoLoading] = useState(true)
+  const [videoError, setVideoError] = useState<string>('')
+  const [retryCount, setRetryCount] = useState(0)
 
   const captureFrame = (): string => {
     const video = videoRef.current
@@ -172,10 +174,74 @@ export default function VideoProcessor({
     }
   }
 
-  const handleVideoError = () => {
-    console.error('Video failed to load')
+  const retryVideoLoad = () => {
+    if (retryCount < 3) {
+      console.log(`Retrying video load (attempt ${retryCount + 1}/3)`)
+      setRetryCount(prev => prev + 1)
+      setIsVideoLoading(true)
+      setVideoError('')
+      
+      if (videoRef.current) {
+        videoRef.current.load()
+      }
+    }
+  }
+
+  const handleVideoError = (e: Event) => {
+    const video = e.target as HTMLVideoElement
+    const error = video.error
+    
+    console.error('Video failed to load. Details:', {
+      videoUrl,
+      retryCount,
+      error: error ? {
+        code: error.code,
+        message: error.message,
+        MEDIA_ERR_ABORTED: error.code === 1,
+        MEDIA_ERR_NETWORK: error.code === 2,
+        MEDIA_ERR_DECODE: error.code === 3,
+        MEDIA_ERR_SRC_NOT_SUPPORTED: error.code === 4
+      } : 'No error details available',
+      videoSrc: video.src,
+      networkState: video.networkState,
+      readyState: video.readyState
+    })
+    
     setIsVideoLoading(false)
-    alert('Failed to load video. Please try uploading a different video file or check your internet connection.')
+    
+    let errorMessage = 'Failed to load video. '
+    if (error) {
+      switch (error.code) {
+        case 1:
+          errorMessage += 'Video loading was aborted.'
+          break
+        case 2:
+          errorMessage += 'Network error occurred while loading video.'
+          break
+        case 3:
+          errorMessage += 'Video format is corrupted or unsupported.'
+          break
+        case 4:
+          errorMessage += 'Video format is not supported by your browser.'
+          break
+        default:
+          errorMessage += 'Unknown error occurred.'
+      }
+    }
+    
+    if (videoUrl.includes('facebook.com') || videoUrl.includes('fb.watch')) {
+      errorMessage += ' For Facebook URLs: Make sure you checked the "FORCE USE URL" checkbox and try again.'
+    }
+    
+    setVideoError(errorMessage)
+    
+    // Don't show alert immediately if we can retry
+    if (retryCount < 3) {
+      console.log('Will attempt retry in 2 seconds...')
+      setTimeout(retryVideoLoad, 2000)
+    } else {
+      alert(errorMessage + ' Maximum retry attempts reached.')
+    }
   }
 
   const formatTime = (time: number): string => {
@@ -213,18 +279,45 @@ export default function VideoProcessor({
     <div className="bg-white rounded-xl p-6 shadow-lg">
       <h2 className="text-xl font-bold text-gray-900 mb-6">Video Processing</h2>
       
+      {/* Debug Info */}
+      <div className="mb-4 p-3 bg-gray-100 rounded text-sm font-mono">
+        <div>DEBUG: videoUrl = &quot;{videoUrl}&quot;</div>
+        <div>Loading: {String(isVideoLoading)} | Error: {videoError || 'none'} | Retries: {retryCount}/3</div>
+      </div>
+      
+      {/* Error Display */}
+      {videoError && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <h3 className="font-semibold text-red-900 mb-2">Video Loading Error</h3>
+          <p className="text-red-700 text-sm">{videoError}</p>
+          {retryCount < 3 && (
+            <button
+              onClick={retryVideoLoad}
+              className="mt-3 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+            >
+              Retry Loading ({retryCount}/3)
+            </button>
+          )}
+        </div>
+      )}
+      
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Video Player */}
         <div>
           <div className="relative bg-black rounded-lg overflow-hidden mb-4">
             <video
               ref={videoRef}
-              src={videoUrl}
               className="w-full h-auto"
               controls={false}
               preload="metadata"
               crossOrigin="anonymous"
-            />
+              playsInline
+            >
+              <source src={videoUrl} type="video/mp4" />
+              <source src={videoUrl} type="video/webm" />
+              <source src={videoUrl} type="video/mov" />
+              Your browser does not support the video tag.
+            </video>
             
             {/* Loading Overlay */}
             {isVideoLoading && (
