@@ -1,7 +1,28 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { Play, Pause, Square, Download } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Play, Pause, Mic, MicOff } from 'lucide-react'
+
+// Speech Recognition API types
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList
+  resultIndex: number
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  onresult: ((event: SpeechRecognitionEvent) => void) | null
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null
+  onend: (() => void) | null
+  start: () => void
+  stop: () => void
+}
 
 interface ExtractedProduct {
   id: string
@@ -38,6 +59,9 @@ export default function VideoProcessor({
   const [isVideoLoading, setIsVideoLoading] = useState(true)
   const [videoError, setVideoError] = useState<string>('')
   const [retryCount, setRetryCount] = useState(0)
+  const [isListening, setIsListening] = useState(false)
+  const [speechRecognition, setSpeechRecognition] = useState<SpeechRecognition | null>(null)
+  const [lastCaptureTime, setLastCaptureTime] = useState(0)
 
   const captureFrame = (): string => {
     const video = videoRef.current
@@ -59,125 +83,151 @@ export default function VideoProcessor({
     return canvas.toDataURL('image/jpeg', 0.8)
   }
 
-  const extractProducts = async () => {
+  const captureProductScreenshot = useCallback(() => {
+    if (!videoRef.current || !isExtracting) return
+
+    const currentVideoTime = videoRef.current.currentTime
+    
+    // Prevent capturing multiple screenshots too quickly
+    if (currentVideoTime - lastCaptureTime < 1) {
+      console.log('Skipping capture - too soon after last capture')
+      return
+    }
+
+    const imageUrl = captureFrame()
+    
+    if (imageUrl) {
+      const product: ExtractedProduct = {
+        id: `product_${currentVideoTime}_${Date.now()}`,
+        timestamp: currentVideoTime,
+        imageUrl,
+        isProcessed: false
+      }
+      
+      const updatedProducts = [...extractedProducts, product]
+      setExtractedProducts(updatedProducts)
+      onProductsExtracted(updatedProducts)
+      setLastCaptureTime(currentVideoTime)
+      
+      // Update progress based on video position
+      const progress = (currentVideoTime / duration) * 100
+      setExtractionProgress(progress)
+      onProgress(progress)
+      
+      console.log(`✓ Captured product at ${currentVideoTime.toFixed(1)}s via voice command`)
+    }
+  }, [isExtracting, lastCaptureTime, extractedProducts, duration, onProductsExtracted, onProgress])
+
+  const initializeSpeechRecognition = () => {
+    // Check if Web Speech API is available
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    
+    if (!SpeechRecognition) {
+      console.error('Speech recognition not supported in this browser')
+      alert('Speech recognition is not supported in your browser. Please use Chrome, Edge, or Safari.')
+      return null
+    }
+
+    const recognition = new SpeechRecognition()
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.lang = 'en-US'
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const last = event.results.length - 1
+      const transcript = event.results[last][0].transcript.toLowerCase()
+
+      // Check if the word "next" was spoken
+      if (transcript.includes('next') && event.results[last].isFinal) {
+        console.log('Voice command "next" detected')
+        captureProductScreenshot()
+      }
+    }
+
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      console.error('Speech recognition error:', event.error)
+      if (event.error === 'no-speech') {
+        // Restart recognition if no speech detected
+        setTimeout(() => {
+          if (isListening && recognition) {
+            try {
+              recognition.start()
+            } catch {
+              console.log('Recognition already started')
+            }
+          }
+        }, 1000)
+      }
+    }
+
+    recognition.onend = () => {
+      // Restart if still supposed to be listening
+      if (isListening) {
+        try {
+          recognition.start()
+        } catch {
+          console.log('Recognition already started')
+        }
+      }
+    }
+
+    return recognition
+  }
+
+  const startVoiceExtraction = () => {
     if (!videoRef.current) {
       console.error('Video element not found')
       return
     }
 
     const videoDuration = videoRef.current.duration
-    console.log('Extract function - videoDuration:', videoDuration, 'state duration:', duration)
+    console.log('Starting voice-activated extraction. Duration:', videoDuration)
 
     if (!videoDuration || videoDuration === 0 || isNaN(videoDuration) || !isFinite(videoDuration)) {
-      console.error('Video duration not available. videoDuration:', videoDuration, 'state duration:', duration)
+      console.error('Video duration not available')
       alert('Please wait for the video to load completely before extracting products.')
       return
     }
 
-    // Use the actual video duration instead of state
-    const actualDuration = videoDuration
-
     setIsExtracting(true)
     setExtractionProgress(0)
+    setExtractedProducts([])
+    setLastCaptureTime(0)
     
-    const video = videoRef.current
-    const products: ExtractedProduct[] = []
-    const interval = 5 // 5 seconds
+    // Initialize speech recognition
+    const recognition = initializeSpeechRecognition()
+    if (!recognition) return
+
+    setSpeechRecognition(recognition)
+    setIsListening(true)
     
-    console.log(`Starting extraction for video duration: ${actualDuration} seconds`)
+    try {
+      recognition.start()
+      console.log('Voice recognition started. Say "next" to capture products.')
+    } catch (error) {
+      console.error('Failed to start speech recognition:', error)
+      alert('Failed to start voice recognition. Please check microphone permissions.')
+      setIsExtracting(false)
+      setIsListening(false)
+    }
+  }
+
+  const stopVoiceExtraction = () => {
+    if (speechRecognition) {
+      setIsListening(false)
+      speechRecognition.stop()
+      setSpeechRecognition(null)
+    }
     
-    // Reset video to start
-    video.currentTime = 0
+    setIsExtracting(false)
     
-    return new Promise<void>((resolve) => {
-      const timeMarks: number[] = []
-      for (let t = 0; t < actualDuration; t += interval) {
-        timeMarks.push(t)
-      }
-      
-      console.log('Time marks for extraction:', timeMarks)
-      
-      let currentIndex = 0
-      
-      const processNextFrame = () => {
-        if (currentIndex >= timeMarks.length) {
-          setIsExtracting(false)
-          setExtractionProgress(100)
-          setExtractedProducts(products)
-          onProductsExtracted(products)
-          onProgress(100)
-          resolve()
-          return
-        }
-        
-        const timestamp = timeMarks[currentIndex]
-        video.currentTime = timestamp
-        
-        const handleSeeked = () => {
-          console.log(`Seeked to ${timestamp}s, processing frame...`)
-          // Small delay to ensure frame is fully loaded
-          setTimeout(() => {
-            const imageUrl = captureFrame()
-            
-            if (imageUrl) {
-              const product: ExtractedProduct = {
-                id: `product_${timestamp}_${Date.now()}`,
-                timestamp,
-                imageUrl,
-                isProcessed: false
-              }
-              
-              products.push(product)
-              setExtractedProducts([...products])
-              console.log(`✓ Extracted frame at ${timestamp}s`)
-            } else {
-              console.warn(`✗ Failed to capture frame at ${timestamp}s`)
-            }
-            
-            currentIndex++
-            const progress = (currentIndex / timeMarks.length) * 100
-            setExtractionProgress(progress)
-            onProgress(progress)
-            
-            video.removeEventListener('seeked', handleSeeked)
-            video.removeEventListener('error', handleSeekError)
-            processNextFrame()
-          }, 200) // Increased delay for better frame loading
-        }
-        
-        const handleSeekError = () => {
-          console.error(`Seek error at ${timestamp}s`)
-          video.removeEventListener('seeked', handleSeeked)
-          video.removeEventListener('error', handleSeekError)
-          currentIndex++
-          processNextFrame()
-        }
-        
-        // Add timeout to prevent getting stuck
-        const seekTimeout = setTimeout(() => {
-          console.warn(`Seek timeout at ${timestamp}s, moving to next frame`)
-          video.removeEventListener('seeked', handleSeeked)
-          video.removeEventListener('error', handleSeekError)
-          currentIndex++
-          processNextFrame()
-        }, 5000)
-        
-        video.addEventListener('seeked', handleSeeked)
-        video.addEventListener('error', handleSeekError)
-        
-        // Clear timeout when seek completes
-        const originalHandleSeeked = handleSeeked
-        const wrappedHandleSeeked = () => {
-          clearTimeout(seekTimeout)
-          originalHandleSeeked()
-        }
-        
-        video.removeEventListener('seeked', handleSeeked)
-        video.addEventListener('seeked', wrappedHandleSeeked)
-      }
-      
-      processNextFrame()
-    })
+    if (extractedProducts.length > 0) {
+      setExtractionProgress(100)
+      onProgress(100)
+    }
+    
+    console.log(`Voice extraction stopped. Captured ${extractedProducts.length} products.`)
   }
 
   const handlePlay = () => {
@@ -204,10 +254,10 @@ export default function VideoProcessor({
       setIsVideoLoading(false)
       console.log(`Video loaded successfully. Duration: ${videoDuration} seconds`)
       
-      // Auto-start extraction after a short delay
+      // Auto-start voice extraction after a short delay
       setTimeout(() => {
-        console.log('Auto-starting extraction...')
-        extractProducts()
+        console.log('Auto-starting voice extraction...')
+        startVoiceExtraction()
       }, 1000)
     }
   }
@@ -316,9 +366,31 @@ export default function VideoProcessor({
         video.removeEventListener('loadedmetadata', handleLoadedMetadata)
         video.removeEventListener('ended', () => setIsPlaying(false))
         video.removeEventListener('error', handleVideoError)
+        
+        // Clean up speech recognition
+        if (speechRecognition) {
+          speechRecognition.stop()
+        }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Update speech recognition when extractedProducts changes
+  useEffect(() => {
+    if (speechRecognition && speechRecognition.onresult) {
+      speechRecognition.onresult = (event: SpeechRecognitionEvent) => {
+        const last = event.results.length - 1
+        const transcript = event.results[last][0].transcript.toLowerCase()
+
+        if (transcript.includes('next') && event.results[last].isFinal) {
+          console.log('Voice command "next" detected')
+          captureProductScreenshot()
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [extractedProducts, speechRecognition])
 
   return (
     <div className="bg-white rounded-xl p-6 shadow-lg">
@@ -403,36 +475,56 @@ export default function VideoProcessor({
             </div>
           </div>
 
-          {/* Auto-extraction status */}
-          <div className="w-full py-3 bg-gray-100 text-gray-700 rounded-lg flex items-center justify-center gap-2">
-            {isExtracting ? (
-              <>
-                <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-                Auto-Extracting Screenshots... {Math.round(extractionProgress)}%
-              </>
-            ) : isVideoLoading ? (
-              <>
-                <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin"></div>
-                Loading video... Extraction will start automatically
-              </>
-            ) : duration > 0 ? (
-              <>
-                <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
-                Starting auto-extraction...
-              </>
-            ) : (
-              <>
-                <Download size={20} />
-                Waiting for video to load...
-              </>
+          {/* Voice control status */}
+          <div className="w-full py-3 bg-gray-100 text-gray-700 rounded-lg">
+            <div className="flex items-center justify-center gap-2">
+              {isListening ? (
+                <>
+                  <Mic size={20} className="text-red-600 animate-pulse" />
+                  <span className="font-semibold">Voice Control Active</span>
+                  <button
+                    onClick={stopVoiceExtraction}
+                    className="ml-4 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors text-sm"
+                  >
+                    Stop
+                  </button>
+                </>
+              ) : isExtracting ? (
+                <>
+                  <MicOff size={20} className="text-gray-400" />
+                  <span>Initializing voice control...</span>
+                </>
+              ) : isVideoLoading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Loading video... Voice control will start automatically</span>
+                </>
+              ) : (
+                <>
+                  <MicOff size={20} className="text-gray-400" />
+                  <span>Voice control inactive</span>
+                  <button
+                    onClick={startVoiceExtraction}
+                    className="ml-4 px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors text-sm"
+                  >
+                    Start
+                  </button>
+                </>
+              )}
+            </div>
+            {isListening && (
+              <div className="mt-2 text-center text-sm">
+                <p className="text-purple-600 font-medium">Say &quot;NEXT&quot; to capture a product screenshot</p>
+                <p className="text-gray-500 mt-1">Products captured: {extractedProducts.length}</p>
+              </div>
             )}
           </div>
 
           {/* Progress Bar */}
-          {isExtracting && (
+          {isExtracting && extractedProducts.length > 0 && (
             <div className="mt-4">
               <div className="flex justify-between text-sm text-gray-600 mb-2">
-                <span>Extracting screenshots from video...</span>
+                <span>Video progress</span>
                 <span>{Math.round(extractionProgress)}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
@@ -441,9 +533,8 @@ export default function VideoProcessor({
                   style={{ width: `${extractionProgress}%` }}
                 ></div>
               </div>
-              <div className="mt-2 flex items-center gap-2 text-xs text-purple-600">
-                <div className="w-3 h-3 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-                <span>Taking screenshots every 5 seconds...</span>
+              <div className="mt-2 text-xs text-purple-600 text-center">
+                <span>Voice-activated capture mode</span>
               </div>
             </div>
           )}
@@ -472,16 +563,16 @@ export default function VideoProcessor({
             </div>
           ) : (
             <div className="text-center text-gray-500 py-8">
-              <Square className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>Screenshots will appear here during extraction</p>
-              <p className="text-sm mt-1">Click &quot;Extract Products&quot; to begin</p>
+              <Mic className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>Screenshots will appear here when you say &quot;NEXT&quot;</p>
+              <p className="text-sm mt-1">Voice control will start automatically</p>
             </div>
           )}
 
-          {extractedProducts.length > 0 && !isExtracting && (
+          {extractedProducts.length > 0 && !isExtracting && !isListening && (
             <div className="mt-4 p-4 bg-green-50 rounded-lg">
               <p className="text-green-800 text-sm">
-                ✓ Extracted {extractedProducts.length} product screenshots
+                ✓ Captured {extractedProducts.length} product screenshots via voice
               </p>
               <p className="text-green-700 text-xs mt-1">
                 Ready to crop and enhance images
